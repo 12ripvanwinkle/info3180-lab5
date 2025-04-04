@@ -5,14 +5,70 @@ Werkzeug Documentation:  https://werkzeug.palletsprojects.com/
 This file creates your application.
 """
 
-from app import app
+from app import app ,db
 from flask import render_template, request, jsonify, send_file
 import os
-
+from werkzeug.utils import secure_filename
+import os
+from .forms import MovieForm
+from .models import Movie
+from app import csrf
 
 ###
 # Routing for your application.
 ###
+
+UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+UPLOAD_FOLDER = "uploads"
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+
+@app.route('/api/v1/movies', methods=['POST'])
+@csrf.exempt  # Disable CSRF for this API route
+def movies():
+    # Debugging statements
+    print("Request files:", request.files)  # See what files are being sent
+    print("Request form data:", request.form)  # See other form fields being sent
+
+    if 'poster' not in request.files:
+        return jsonify({"errors": ["Poster file is missing"]}), 400  # <-- File not found in request
+
+    title = request.form.get('title')
+    description = request.form.get('description')
+    file = request.files.get('poster')  # <-- Fetch file from request
+
+    # Validate form data
+    if not title or not description or not file:
+        return jsonify({"errors": ["Title, Description, and Poster are required"]}), 400
+
+    # Validate file type and save it
+    if file.filename == '':  
+        return jsonify({"errors": ["No selected file"]}), 400  # <-- Check if filename is empty
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    else:
+        return jsonify({"errors": ["Invalid file type"]}), 400
+
+    # Save movie to database
+    new_movie = Movie(title=title, description=description, poster=filename)
+    db.session.add(new_movie)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Movie Successfully added",
+        "title": title,
+        "poster": filename,
+        "description": description
+    }), 201
+
+# Helper function to check allowed file extensions
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/')
 def index():
