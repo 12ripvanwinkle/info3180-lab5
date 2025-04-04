@@ -13,7 +13,7 @@ import os
 from .forms import MovieForm
 from .models import Movie
 from app import csrf
-
+from flask_wtf.csrf import generate_csrf
 ###
 # Routing for your application.
 ###
@@ -69,6 +69,10 @@ def movies():
 # Helper function to check allowed file extensions
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/api/v1/csrf-token', methods=['GET'])
+def get_csrf():
+ return jsonify({'csrf_token': generate_csrf()})
 
 @app.route('/')
 def index():

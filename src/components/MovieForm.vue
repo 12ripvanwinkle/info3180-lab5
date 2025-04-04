@@ -5,17 +5,17 @@
 
             <div class="form-group mb-3">
                 <label for="title" class="form-label">Movie Title</label>
-                <input type="text" id="title" v-model="movie.title" class="form-control" required>  
+                <input type="text" id="title" name="title" v-model="movie.title" class="form-control" required>  
             </div>
 
             <div class="form-group mb-3">
                 <label for="description" class="form-label">Description</label>
-                <textarea id="description" v-model="movie.description" class="form-control" required></textarea>
+                <textarea id="description" name="description" v-model="movie.description" class="form-control" required></textarea>
             </div>
 
             <div class="form-group mb-3">
                 <label for="poster" class="form-label">Movie Poster</label>
-                <input type="file" id="poster" @change="handleFileUpload" class="form-control" required>
+                <input type="file" id="poster" name="poster" @change="handleFileUpload" class="form-control" required>
             </div>
 
             <button type="submit" class="btn btn-primary">Submit</button>
@@ -32,7 +32,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 
 const movie = ref({
     title: "",
@@ -42,6 +42,23 @@ const movie = ref({
 
 const errorMessage = ref("");
 const successMessage = ref("");
+const csrf_token = ref('');
+
+// 📥 Fetch CSRF token on component mount
+const getCsrfToken = () => {
+  fetch('/api/v1/csrf-token')
+    .then((response) => response.json())
+    .then((data) => {
+      console.log('CSRF Token:', data)
+      csrf_token.value = data.csrf_token
+    })
+    .catch((error) => {
+      console.error('Error fetching CSRF token:', error)
+    })
+}
+onMounted(() => {
+  getCsrfToken()
+})
 
 // this handles file inputs
 const handleFileUpload = (event) =>{
@@ -50,25 +67,29 @@ const handleFileUpload = (event) =>{
 
 // Function to submit the movie data
 const saveMovie = async () => {
-    const formData = new FormData();
-    formData.append("title", movie.value.title);
-    formData.append("description", movie.value.description);
-    formData.append("poster", movie.value.poster);
+  let movieForm = document.getElementById('movieForm');
+  let form_data = new FormData(movieForm);
 
-    try{
-        const response = await fetch("/api/v1/movies",{
-            method: "POST",
-            body: formData,
-        });
+  try {
+    const response = await fetch("/api/v1/movies", {
+      method: "POST",
+      body: form_data,
+      headers: {
+      'X-CSRFToken': csrf_token.value
+    }   
+    });
 
-        const data = await response.json();
+    const data = await response.json();
 
-        if (response.ok) {
+    if (response.ok) {
       successMessage.value = data.message;
       errorMessage.value = "";
+
+      // reset form manually since v-model won't reset file input
       movie.value.title = "";
       movie.value.description = "";
       movie.value.poster = null;
+      movieForm.reset();
     } else {
       errorMessage.value = data.errors.join(", ");
       successMessage.value = "";
@@ -78,7 +99,6 @@ const saveMovie = async () => {
     errorMessage.value = "An error occurred while submitting the form.";
     successMessage.value = "";
   }
-
 };
 </script>
 
